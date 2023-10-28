@@ -44,24 +44,27 @@ class Agent:
         # Agent "sees" the state of the tube but not the spout
         return environment.tube_state
 
-    def update_recent_actions(self, action):
-        # Update the list of recent outcomes
-        self.recent_actions.append(action)
-        if len(self.recent_actions) > self.strategy_kwargs.get("memory_size", 10):
-            self.recent_actions.pop(0)
-
-    # Update the history of spout states
-    #self.previous_outcomes.append(self.environment.spout_state)
-    #if len(self.previous_outcomes) > self.strategy_kwargs.get("memory_size", 10):
-    #self.previous_outcomes.pop(0)
-
     def choose_action(self, environment):
         # Agent chooses action based on the provided strategy function
         self.environment = environment  # Add this line to store the environment
         #self.update_recent_actions("Wait")  # Ensure previous_outcomes is initialized
         action = self.strategy_fn(self, environment)
         self.update_recent_actions(action)
+        print("ChosAct PrevOut", self.previous_outcomes)
         return action
+
+    def update_recent_actions(self, action):
+        # Update the list of recent outcomes
+        self.recent_actions.append(action)
+        if len(self.recent_actions) > self.strategy_kwargs.get("memory_size", 10):
+            self.recent_actions.pop(0)
+
+        # Update the history of spout states
+        print("Agent prevoutcomesRecentactionbefore:", self.previous_outcomes, "State", self.environment.spout_state)
+        self.previous_outcomes.append(self.environment.spout_state)
+        print("Agent prevoutcomesRecentaction:", self.previous_outcomes, "State",self.environment.spout_state )
+        if len(self.previous_outcomes) > self.strategy_kwargs.get("memory_size", 10):
+            self.previous_outcomes.pop(0)
 
 
 
@@ -124,7 +127,7 @@ def periodic_strategy(agent, environment, consecutive_wait=3, consecutive_lick=2
 
 def plastic_strategy(agent, environment):
     memory_size = agent.strategy_kwargs.get("memory_size")
-    print("Pastchoice1:", agent.recent_actions)
+    #print("Pastchoice1:", agent.recent_actions)
     if len(agent.recent_actions) == 0:
         #print("Pastchoice2:", agent.recent_actions)
         return random.choice(["A", "B", "C", "D", "E", "F"])
@@ -145,17 +148,24 @@ def plastic_strategy(agent, environment):
 
 def adaptive_strategy(agent, environment):
     memory_size = agent.strategy_kwargs.get("memory_size", 10)
+    #print("Pastchoice1", agent.previous_outcomes)
     if len(agent.previous_outcomes) == 0:
-        print(agent.previous_outcomes)
+        #print("Pastchoice2", agent.previous_outcomes)
+        return random.choice(["A", "B", "C", "D", "E", "F"])
+    # This is a bandaid to make it work. The way it is working this method is appending the previous random choice
+    # twice to the agent.recent_actions. Those values don't even manage to constitute an action. (They're not returned
+    # as actions I believe) It seems it is being called once before the task and appending twice Idk
+    elif len(agent.recent_actions) == 2:
+        #print("Pastchoice3:", agent.previous_outcomes)
         return random.choice(["Lick", "Wait"])
-
-    # Use the previous outcomes excluding the current trial's outcome
-    outcomes = agent.previous_outcomes
-    # Calculate lick probability based on past outcomes
-    lick_probability = outcomes.count("ON") / len(outcomes) # if len(outcomes) > 0 else 0.0
-    print("Past outcomes and licking odd", outcomes , lick_probability)
-    print(agent.previous_outcomes)
-    return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
+    else:
+# Use the previous outcomes excluding the current trial's outcome
+        outcomes = agent.previous_outcomes
+        # Calculate lick probability based on past outcomes
+        lick_probability = outcomes.count("ON") / len(outcomes) # if len(outcomes) > 0 else 0.0
+        #print("Past outcomes", outcomes , "PLick", lick_probability)
+        #print(agent.previous_outcomes)
+        return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
 
 def qlearning_strategy(agent, environment):
     return agent.choose_q_action(environment.tube_state)
@@ -192,6 +202,7 @@ class Experiment:
 
         # Initialize previous_outcomes outside the loop
         self.agent.update_recent_actions(self.agent.choose_action(self.environment))
+
 
         for trial in range(1, self.num_trials + 1):
 
