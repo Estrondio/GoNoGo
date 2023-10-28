@@ -209,13 +209,6 @@ class Experiment:
             # Store the current state before taking any action
             state = self.environment.tube_state
 
-            # Update the list of recent outcomes before choosing the next action
-            #self.agent.update_recent_actions(self.agent.choose_action(self.environment))
-
-            # Print trial information
-            #self.print_trial_info(trial)
-            # state = self.agent.get_observation(self.environment)
-
             # Agent action based on the provided strategy function
             action = self.agent.choose_action(self.environment)
             #print(f"Agent Action: {action}")
@@ -254,14 +247,6 @@ class Experiment:
             # Calculate profit
             #profit = self.agent.calculate_profit()
             profit_over_trials.append(self.agent.profit)
-
-            '''
-            ####DEBUG TOTALS/ TRIAL
-            #Print updated states after each trial
-            print(f"Rewards: {self.agent.rewards}")
-            print(f"Timeouts: {self.agent.timeouts}")
-            print(f"Null: {self.agent.null}")
-            '''
 
             # Update environment
             self.environment.update_tube_state()
@@ -330,12 +315,12 @@ class Experiment:
 
 # Define the strategies to simulate
 strategies_to_simulate = {
-    #"Random": random_strategy,
-    #"Always Lick": always_lick_strategy,
-    #"Periodic": periodic_strategy,
-    #"Plastic": plastic_strategy,
+    "Random": random_strategy,
+    "Always Lick": always_lick_strategy,
+    "Periodic": periodic_strategy,
+    "Plastic": plastic_strategy,
     "Adaptive": adaptive_strategy,
-    #"QLearningAgent": qlearning_strategy,
+    "QLearningAgent": qlearning_strategy,
 }
 
 values_to_plot = ["Profit"]
