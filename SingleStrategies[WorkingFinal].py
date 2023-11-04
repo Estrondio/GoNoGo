@@ -23,7 +23,6 @@ class Environment:
 class Agent:
     def __init__(self, strategy_fn, action_space=["Lick", "Wait"],
                  learning_rate=0.01, discount_factor=0.4, epsilon=0.1,
-                 input_size=1, hidden_size=2, output_size=2,
                  **kwargs):
         # Initialize tracking variables and strategy function
         self.rewards = 0
@@ -114,6 +113,7 @@ class Agent:
                 self.recent_spout_states.pop(0)
 
     def calculate_profit(self):
+        #Subtracts timeouts from rewards.
         return self.rewards - self.timeouts
 
     def get_q_value(self, state, action):
@@ -389,13 +389,12 @@ strategies_to_simulate = {
     "Jackpot": jackpot_strategy, # After some profit checkpoints becomes more conservative
     "Decay": exponential_decay_strategy, #Less likely to lick as the profit increase
     "Empirical" : empirical_strategy, #Establishes deterministic relations between spout states and tube states
-    "QLearningAgent": qlearning_strategy,
+    "QLearningAgent": qlearning_strategy,#A q learning agent that learns through reinforcement learning
 }
 
-values_to_plot = ["Profit"]
+values_to_plot = ["Profit"] # Profit, Reward, Timeouts, Null
 
-# Run the experiment with 50 trials for selected strategies and values
-# Run the experiment with the new neural network strategy
+# Run the experiment with x trials for selected strategies and values
 experiment = Experiment(num_trials=1000, strategy_fns=strategies_to_simulate,
                         values_to_plot=values_to_plot, memory_size=10)
 experiment.run_experiment()
