@@ -1,5 +1,4 @@
 import random
-import math
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -35,8 +34,6 @@ class Agent:
         self.recent_actions = []
         self.recent_spout_states = []
         self.recent_tube_states = []
-        self.winning_heuristic = []  # Store tube states in "ON" outcomes
-        self.losing_heuristic = []  # Store tube state when "OFF" outcomes
         self.action_space = action_space
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
@@ -98,20 +95,15 @@ class Agent:
         # Agent waits action
         tube_state = self.tube_observation(environment)
         if tube_state == "GO":
-            self.null += 1
+            self.rewards += 0
             self.recent_spout_states.append("MISS")
-            if len(self.recent_spout_states) > self.strategy_kwargs.get("memory_size", 10):
-                self.recent_spout_states.pop(0)
         elif tube_state == "NOGO":
-            self.null += 1
+            self.timeouts += 0
             self.recent_spout_states.append("MISS")
-            if len(self.recent_spout_states) > self.strategy_kwargs.get("memory_size", 10):
-                self.recent_spout_states.pop(0)
         else:
-            self.null += 1
+            self.null += 0
             self.recent_spout_states.append("MISS")
-            if len(self.recent_spout_states) > self.strategy_kwargs.get("memory_size", 10):
-                self.recent_spout_states.pop(0)
+
 
     def calculate_profit(self):
         return self.rewards - self.timeouts
@@ -120,22 +112,23 @@ class Agent:
         # Get the Q-value for a given state-action pair
         return self.q_table.get((state, action), 0.0)
 
+    #def store_results(self, trial):
+        # Store results for each trial
+    #    self.rewards_over_trials.append(self.rewards)
+    #    self.timeouts_over_trials.append(self.timeouts)
+    #    self.null_over_trials.append(self.null)
+
     def choose_q_action(self, state):
         # Epsilon-greedy strategy for exploration
         if random.uniform(0, 1) < self.epsilon:
-            print("Randomhit!")
             return random.choice(self.action_space)
         else:
             # Choose action with the highest Q-value
             q_values = [self.get_q_value(state, action) for action in self.action_space]
-            #print("QValues for state", state, "are:", q_values)
-            #print("Actual action return", self.action_space[np.argmax(q_values)])
             return self.action_space[np.argmax(q_values)]
 
     def update_q_value(self, state, action, reward, next_state):
         # Q-value update using the Bellman equation
-        #print("This section is in agent update q. state:", state, "action", action,
-              #"reward", reward, "next state", next_state)
         current_q = self.get_q_value(state, action)
         best_next_q = max([self.get_q_value(next_state, a) for a in self.action_space])
         new_q = (1 - self.learning_rate) * current_q + self.learning_rate * (reward + self.discount_factor * best_next_q)
@@ -143,12 +136,7 @@ class Agent:
 
 # Strategies
 def random_strategy(agent, environment, lick_probability=0.5):
-    if len(agent.recent_spout_states) == 0:
-        return "Wait"
-    else:
-        #print('Branch1. recent spout states:', agent.recent_spout_states)
-        #print("Recent spout states last", agent.recent_tube_states[-1])
-        return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
+    return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
 
 def always_lick_strategy(agent, environment, return_lick=0):
     return "Lick" if return_lick == 0 else "Wait"
@@ -162,86 +150,86 @@ def periodic_strategy(agent, environment, consecutive_wait=3, consecutive_lick=2
 
 def plastic_strategy(agent, environment):
     memory_size = agent.strategy_kwargs.get("memory_size")
-    if len(agent.recent_actions) < memory_size:
+    #print("Pastchoice1:", agent.recent_actions)
+    if len(agent.recent_actions) == 0:
+        #print("Pastchoice2:", agent.recent_actions)
+        return random.choice(["A", "B", "C", "D", "E", "F"])
+    #This is a bandaid to make it work. The way it is working this method is appending the previous random choice
+    #twice to the agent.recent_actions. Those values don't even manage to constitute an action. (They're not returned
+    #as actions I believe) It seems it is being called once before the task and appending twice Idk
+    elif len(agent.recent_actions) == 2:
+        #print("Pastchoice3:", agent.recent_actions)
         return random.choice(["Lick", "Wait"])
-    else:
-        wait_probability = agent.recent_actions.count("Lick") / len(agent.recent_actions)
-        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
+
+    recentActions = agent.recent_actions
+    total_county = sum(agent.recent_actions.count(action) for action in ["Lick", "Wait"])
+    lick_probability = agent.recent_actions.count("Lick") / total_county
+    #print("Pastchoices", recentActions, "Number of recent Licks", agent.recent_actions.count("Lick"), "Total actions",
+          #total_county, "PLick",  lick_probability)
+    return "Lick" if random.uniform(0, 1) > lick_probability else "Wait"
+
 
 def adaptive_strategy(agent, environment):
-    memory_size = agent.strategy_kwargs.get("memory_size")
-    if len(agent.recent_actions) < memory_size:
+    memory_size = agent.strategy_kwargs.get("memory_size", 10)
+    #print("Pastchoice1", agent.previous_outcomes)
+    if len(agent.previous_outcomes) == 0:
+        #print("Pastchoice2", agent.previous_outcomes)
+        return random.choice(["A", "B", "C", "D", "E", "F"])
+    # This is a bandaid to make it work. The way it is working this method is appending the previous random choice
+    # twice to the agent.recent_actions. Those values don't even manage to constitute an action. (They're not returned
+    # as actions I believe) It seems it is being called once before the task and appending twice Idk
+    elif len(agent.recent_actions) == 2:
+        #print("Pastchoice3:", agent.previous_outcomes)
         return random.choice(["Lick", "Wait"])
     else:
-        outcomes = agent.recent_spout_states
-        lick_probability = 1 - (outcomes.count("OFF") / len(outcomes))
-        print("Outcomes:", outcomes, "recentspoutstates:", agent.recent_spout_states, " PWait:", lick_probability)
-        return "Lick" if random.uniform(0, 1) > lick_probability else "Wait"
-
-def intuitive_strategy(agent, environment):
-    memory_size = agent.strategy_kwargs.get("memory_size")
-    if len(agent.recent_actions) < memory_size:
-        return random.choice(["Lick", "Wait"])
-    else:
-        if any(element == 'ON' for element in agent.recent_spout_states[-3:]):
-            return "Lick"
-        elif agent.recent_spout_states[-3:].count('OFF') >= 3:
-            return "Wait"
-        else:
-            return random.choice(["Lick", "Wait"])
-
-def stochastic_strategy(agent, environment):
-    memory_size = agent.strategy_kwargs.get("memory_size")
-    if 'ON' in agent.recent_spout_states:
-        last_ON = len(agent.recent_spout_states) - 1 - agent.recent_spout_states[::-1].index('ON')
-        distance = len(agent.recent_spout_states) - 1 - last_ON
-        wait_probability = (10 - distance) / 10
-        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
-    else:
-        return random.choice(["Lick", "Wait"])
-
-def jackpot_strategy(agent, environment):
-    if 1 <= agent.profit <=4:
-        return "Lick" if random.uniform(0, 1) < (0.5 - (agent.profit / 10)) else "Wait"
-    elif 5 <= agent.profit <=99:
-        return "Lick" if random.uniform(0, 1) < (0.1 - (agent.profit / 1000)) else "Wait"
-    elif agent.profit == 100:
-        return "Wait"
-    else:
-        return random.choice(["Lick", "Wait"])
-
-def exponential_decay_strategy(agent, environment):
-    profit = agent.profit
-    # Define the base probability of licking
-    base_probability = 0.5
-    # Define the decay rate
-    decay_rate = 0.1
-    # Calculate the probability of licking using exponential decay
-    lick_probability = base_probability * math.exp(-decay_rate * profit)
-    # Make a decision based on the calculated probability
-    return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
-
-def empirical_strategy(agent, environment):
-    # Start with a random choice for the first trial
-    if len(agent.recent_spout_states) == 0:
-        return random.choice(["Lick", "Wait"])
-
-    # Update heuristics based on the previous trial's outcome
-    if agent.recent_spout_states[-1] == "ON":
-        agent.winning_heuristic.append(agent.recent_tube_states[-2])
-    elif agent.recent_spout_states[-1] == "OFF":
-        agent.losing_heuristic.append(agent.recent_tube_states[-2])
-
-    # Check for action selection based on the current tube state
-    if environment.tube_state in agent.winning_heuristic:
-        return "Lick"
-    elif environment.tube_state in agent.losing_heuristic:
-        return "Wait"
-    else:
-        return random.choice(["Lick", "Wait"])
+# Use the previous outcomes excluding the current trial's outcome
+        outcomes = agent.previous_outcomes
+        # Calculate lick probability based on past outcomes
+        lick_probability = outcomes.count("ON") / len(outcomes) # if len(outcomes) > 0 else 0.0
+        #print("Past outcomes", outcomes , "PLick", lick_probability)
+        #print(agent.previous_outcomes)
+        return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
 
 def qlearning_strategy(agent, environment):
     return agent.choose_q_action(environment.tube_state)
+
+def bayesian_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size", 10)
+
+    if len(agent.recent_actions) < memory_size:
+        return random.choice(["Lick", "Wait"])
+
+    # Use the previous outcomes and actions
+    outcomes = agent.previous_outcomes
+    print("Outcomes history", outcomes)
+    actions = agent.recent_actions
+    print("Actions history", actions)
+    tube_states = [environment.tube_state]
+    print("Tube states history", tube_states)
+
+    # Create a list of tuples representing the combination of tube state, action, and outcome
+    combined_data = list(zip(tube_states, actions, outcomes))
+    #print("Combined tuple:", combined_data)
+
+    # Count occurrences of each combination
+    occurrences = {}
+    for combo in combined_data:
+        occurrences[combo] = occurrences.get(combo, 0) + 1
+        #print("Ocurrences:", occurrences)
+
+    # Calculate conditional probability of reward based on past outcomes, actions, and tube states
+    total_rewards = sum(1 for combo, count in occurrences.items() if combo[1] == "Lick" and combo[2] == "GO")
+    total_attempts = sum(count for combo, count in occurrences.items() if combo[1] == "Lick")
+
+    # Avoid division by zero
+    conditional_probability = total_rewards / total_attempts if total_attempts > 0 else 0.0
+
+    # Cap the probability at 1.0
+    conditional_probability = min(conditional_probability, 1.0)
+
+    # Decide whether to lick based on the calculated probability
+    return "Lick" if random.uniform(0, 1) < conditional_probability else "Wait"
+
 
 class Experiment:
     def __init__(self, num_trials, strategy_fns, values_to_plot, **kwargs):
@@ -251,7 +239,13 @@ class Experiment:
         self.values_to_plot = values_to_plot
         self.kwargs = kwargs
         self.results = {}
+        #self.simulated_strategies = []
+        #def get_simulated_strategies(self):
+        #return self.simulated_strategies
 
+    #def print_trial_info(self, trial):
+     #   print(f"\nTrial {trial}:")
+      #  print(f"Tube State: {self.environment.tube_state}")
     def run_single_experiment(self, strategy_fn):
         # Initialize agent and environment
         self.environment = Environment()
@@ -271,7 +265,7 @@ class Experiment:
 
             # Store the current state before taking any action
             #state = self.environment.tube_state
-            state = self.agent.tube_observation(self.environment)
+            state = self.agent.tube_observation
 
             # Agent action based on the provided strategy function
             action = self.agent.choose_action(self.environment)
@@ -295,6 +289,7 @@ class Experiment:
 
             # Update Q-value
             self.agent.update_q_value(state, action, reward, self.environment.tube_state)
+
             # Calculate profit and update agent's profit variable
             self.agent.profit = self.agent.calculate_profit()
 
@@ -308,9 +303,9 @@ class Experiment:
             null_over_trials.append(self.agent.null)
             profit_over_trials.append(self.agent.profit)
 
-            #print("Recentactions: ",self.agent.recent_actions)
-            #print("Recentspouts", self.agent.recent_spout_states )
-            #print( "Recenttubes", self.agent.recent_tube_states )
+            print("Recentactions: ",self.agent.recent_actions)
+            print("Recentspouts", self.agent.recent_spout_states )
+            print( "Recenttubes", self.agent.recent_tube_states )
 
             # Update environment
             self.environment.update_tube_state()
@@ -379,23 +374,19 @@ class Experiment:
 
 # Define the strategies to simulate
 strategies_to_simulate = {
-    "Random": random_strategy, #Takes an random action according to the probability set
-    "Always Lick": always_lick_strategy, #Always perform the same set action
-    "Periodic": periodic_strategy,  #Always repeat the same set pattern
-    "Plastic": plastic_strategy, #Is most likely to take the least frequent recent action (Memory size)
-    "Adaptive": adaptive_strategy, #Is most likely to Lick when the recent states have been favorable (Memory Size)
-    "Intuitive": intuitive_strategy, #If there was reward in the last three he will Lick.
-    "Stochastic": stochastic_strategy, #Lick probability increases as the time passes from the last reward
-    "Jackpot": jackpot_strategy, # After some profit checkpoints becomes more conservative
-    "Decay": exponential_decay_strategy, #Less likely to lick as the profit increase
-    "Empirical" : empirical_strategy, #Establishes deterministic relations between spout states and tube states
-    "QLearningAgent": qlearning_strategy,
+    "Random": random_strategy,
+    "Always Lick": always_lick_strategy,
+    "Periodic": periodic_strategy,
+    #"Plastic": plastic_strategy,
+    #"Adaptive": adaptive_strategy,
+    #"Bayesian" : bayesian_strategy,
+    #"QLearningAgent": qlearning_strategy,
 }
 
-values_to_plot = ["Profit"]
+values_to_plot = ["Profit", "Timeouts"]
 
 # Run the experiment with 50 trials for selected strategies and values
 # Run the experiment with the new neural network strategy
-experiment = Experiment(num_trials=1000, strategy_fns=strategies_to_simulate,
+experiment = Experiment(num_trials=100, strategy_fns=strategies_to_simulate,
                         values_to_plot=values_to_plot, memory_size=10)
 experiment.run_experiment()
