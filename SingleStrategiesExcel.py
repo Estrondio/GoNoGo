@@ -1,7 +1,11 @@
 import random
+import math
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.interpolate import interp1d
+import csv
+import os
+
+
 class Environment:
     def __init__(self):
         # Initialize spout and tube states
@@ -133,7 +137,7 @@ class Agent:
     def update_q_value(self, state, action, reward, next_state):
         # Q-value update using the Bellman equation
         #print("This section is in agent update q. state:", state, "action", action,
-                #"reward", reward, "next state", next_state)
+              #"reward", reward, "next state", next_state)
         current_q = self.get_q_value(state, action)
         best_next_q = max([self.get_q_value(next_state, a) for a in self.action_space])
         new_q = (1 - self.learning_rate) * current_q + self.learning_rate * (reward + self.discount_factor * best_next_q)
@@ -141,21 +145,163 @@ class Agent:
 
 # Strategies
 def random_strategy(agent, environment, lick_probability=0.5):
+    if len(agent.recent_spout_states) == 0:
+        return "Wait"
+    else:
+        #print('Branch1. recent spout states:', agent.recent_spout_states)
+        #print("Recent spout states last", agent.recent_tube_states[-1])
+        return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
+
+def always_lick_strategy(agent, environment, return_lick=0):
+    return "Lick" if return_lick == 0 else "Wait"
+
+def periodic_strategy(agent, environment, consecutive_wait=3, consecutive_lick=2):
+    agent.trial_count += 1
+    if (agent.trial_count % (consecutive_wait + consecutive_lick)) < consecutive_wait:
+        return "Wait"
+    else:
+        return "Lick"
+
+def plastic_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if len(agent.recent_actions) < memory_size:
+        return random.choice(["Lick", "Wait"])
+    else:
+        wait_probability = agent.recent_actions.count("Lick") / len(agent.recent_actions)
+        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
+
+def adaptive_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if len(agent.recent_actions) < memory_size:
+        return random.choice(["Lick", "Wait"])
+    else:
+        outcomes = agent.recent_spout_states
+        lick_probability = 1 - (outcomes.count("OFF") / len(outcomes))
+        print("Outcomes:", outcomes, "recentspoutstates:", agent.recent_spout_states, " PWait:", lick_probability)
+        return "Lick" if random.uniform(0, 1) > lick_probability else "Wait"
+
+def intuitive_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if len(agent.recent_actions) < memory_size:
+        return random.choice(["Lick", "Wait"])
+    else:
+        if any(element == 'ON' for element in agent.recent_spout_states[-3:]):
+            return "Lick"
+        elif agent.recent_spout_states[-3:].count('OFF') >= 3:
+            return "Wait"
+        else:
+            return random.choice(["Lick", "Wait"])
+
+def stochastic_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if 'ON' in agent.recent_spout_states:
+        last_ON = len(agent.recent_spout_states) - 1 - agent.recent_spout_states[::-1].index('ON')
+        distance = len(agent.recent_spout_states) - 1 - last_ON
+        wait_probability = (10 - distance) / 10
+        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
+    else:
+        return random.choice(["Lick", "Wait"])
+
+def jackpot_strategy(agent, environment):
+    if 1 <= agent.profit <=4:
+        return "Lick" if random.uniform(0, 1) < (0.5 - (agent.profit / 10)) else "Wait"
+    elif 5 <= agent.profit <=99:
+        return "Lick" if random.uniform(0, 1) < (0.1 - (agent.profit / 1000)) else "Wait"
+    elif agent.profit == 100:
+        return "Wait"
+    else:
+        return random.choice(["Lick", "Wait"])
+
+def exponential_decay_strategy(agent, environment):
+    profit = agent.profit
+    # Define the base probability of licking
+    base_probability = 0.5
+    # Define the decay rate
+    decay_rate = 0.1
+    # Calculate the probability of licking using exponential decay
+    lick_probability = base_probability * math.exp(-decay_rate * profit)
+    # Make a decision based on the calculated probability
     return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
+
+def empirical_strategy(agent, environment):
+    # Start with a random choice for the first trial
+    if len(agent.recent_spout_states) == 0:
+        return random.choice(["Lick", "Wait"])
+
+    # Update heuristics based on the previous trial's outcome
+    if agent.recent_spout_states[-1] == "ON":
+        agent.winning_heuristic.append(agent.recent_tube_states[-2])
+    elif agent.recent_spout_states[-1] == "OFF":
+        agent.losing_heuristic.append(agent.recent_tube_states[-2])
+
+    # Check for action selection based on the current tube state
+    if environment.tube_state in agent.winning_heuristic:
+        return "Lick"
+    elif environment.tube_state in agent.losing_heuristic:
+        return "Wait"
+    else:
+        return random.choice(["Lick", "Wait"])
 
 def qlearning_strategy(agent, environment):
     return agent.choose_q_action(environment.tube_state)
 
 class Experiment:
-    def __init__(self, num_trials, strategy_fns, values_to_plot, **kwargs):
+    def __init__(self, num_trials, strategy_fns, values_to_plot,
+                 generate_csv=False, save_plots=False, **kwargs):
         # Initialize experiment parameters and strategy functions
         self.num_trials = num_trials
         self.strategy_fns = strategy_fns
         self.values_to_plot = values_to_plot
         self.kwargs = kwargs
         self.results = {}
+        self.generate_csv = generate_csv
+        self.strategy_string = ""
+        self.csv_filename = "" #Check out the directory at the def
+        self.all_trial_info = []
+        self.save_plots = save_plots
 
-    def run_single_experiment(self, strategy_fn):
+    def generate_strategy_code(self, strategy_name):
+        # Generate a unique strategy code based on the initial letters
+        strategy_code = ""
+        for letter in strategy_name:
+            strategy_code += letter.upper()
+            if strategy_code not in self.strategy_string:
+                self.strategy_string += strategy_code
+                break  # If the code is unique, stop
+        else:
+            # If the code already exists, append additional letters
+            i = 1
+            while strategy_code + str(i) in self.strategy_string:
+                i += 1
+            strategy_code += str(i)
+
+        return strategy_code
+
+    def generate_strategy_codes(self, strategy_fns):
+        strategy_codes = ""
+        for strategy_name in strategy_fns.keys():
+            # Generate strategy code based on the initial letters
+            code = self.generate_strategy_code(strategy_name)
+            strategy_codes = strategy_codes + code
+        return self.strategy_string
+    def generate_csv_filename(self):
+        # Generate the CSV filename based on the naming convention
+        num_trials = self.num_trials
+        strategy_code = self.generate_strategy_codes(self.strategy_fns)
+        index = 1
+
+        # Check if a file with the same name already exists
+        while True:
+            #Adjust directory here
+            filename = f"Plots/SingleGNG_{num_trials}_{strategy_code}_{index}"
+            if not os.path.exists(filename):
+                break
+            index += 1
+        self.csv_filename = filename
+        return filename
+
+
+    def run_single_experiment(self, strategy_name, strategy_fn):
         # Initialize agent and environment
         self.environment = Environment()
         self.agent = Agent(strategy_fn, **self.kwargs)
@@ -165,6 +311,7 @@ class Experiment:
         timeouts_over_trials = []
         null_over_trials = []
         profit_over_trials = []
+        trial_info = []
 
         # Initialize previous_outcomes outside the loop
         #self.agent.update_recent_actions(self.agent.choose_action(self.environment))
@@ -211,6 +358,23 @@ class Experiment:
             null_over_trials.append(self.agent.null)
             profit_over_trials.append(self.agent.profit)
 
+
+
+            trial_dict = {
+                "trial_number": trial,
+                "strategy": strategy_name,
+                "tube_state": self.environment.tube_state,
+                "action": action,
+                "spout_state": self.environment.spout_state,
+                "feedback": "Reward" if reward == 1 else ("Timeout" if reward == -1 else "Null"),
+                "profit": self.agent.profit,
+                "total_reward": self.agent.rewards,
+                "total_timeouts": self.agent.timeouts,
+                "total_null": self.agent.null,
+            }
+
+            trial_info.append(trial_dict)
+
             #print("Recentactions: ",self.agent.recent_actions)
             #print("Recentspouts", self.agent.recent_spout_states )
             #print( "Recenttubes", self.agent.recent_tube_states )
@@ -221,8 +385,8 @@ class Experiment:
 
 
 
-
         # Store the final values in new variables
+        self.all_trial_info.extend(trial_info)
         final_rewards = self.agent.rewards
         final_timeouts = self.agent.timeouts
         final_null = self.agent.null
@@ -237,13 +401,29 @@ class Experiment:
         # Run experiments for each selected strategy
         for strategy_name, strategy_fn in self.strategy_fns.items():
             print(f"\nRunning Experiment for Strategy: {strategy_name}")
-            self.results[strategy_name] = self.run_single_experiment(strategy_fn)
+            self.results[strategy_name] = self.run_single_experiment(strategy_name, strategy_fn)  # Pass strategy_fn
 
         # Plotting
         self.plot_results()
         self.plot_groupedbarchart()
 
-    from scipy.interpolate import interp1d
+        # Generate CSV if specified
+        if self.generate_csv:
+            self.export_to_csv()
+
+    def export_to_csv(self):
+        #self.generate_csv_filename()
+        with open(self.csv_filename + '.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["trial_number", "strategy", "tube_state", "action", "spout_state", "feedback",
+                             "profit", "total_reward", "total_timeouts", "total_null"])
+
+            for trial_info in self.all_trial_info:
+                row = [trial_info[key] for key in ["trial_number", "strategy", "tube_state", "action", "spout_state",
+                                                   "feedback", "profit", "total_reward", "total_timeouts", "total_null"]]
+                writer.writerow(row)
+
+            print(f"CSV file generated successfully.")
 
     def plot_results(self):
         plt.figure(figsize=(10, 6))
@@ -255,50 +435,12 @@ class Experiment:
         plt.ylabel("Accumulated Count")
         plt.title("Accumulation of Tracking Variables Over Trials")
         plt.legend()
-
-        plt.figure(figsize=(10, 6))
-
-        for strategy_name, result in self.results.items():
-            # Create a continuous function from the original data for each strategy
-            x_original = range(1, self.num_trials + 1)
-            y_original = result[value]
-            f_original = interp1d(x_original, y_original, kind='linear', fill_value="extrapolate")
-
-            # Plot the continuous function for each strategy
-            x_continuous = np.linspace(min(x_original), max(x_original), 100)
-            plt.plot(x_continuous, f_original(x_continuous), label=f"{strategy_name} - Continuous Function")
-
-        plt.xlabel("Trial Number")
-        plt.ylabel("Accumulated Count")
-        plt.title("Continuous Function of Accumulation Over Trials")
-        plt.legend()
-
-        plt.figure(figsize=(10, 6))
-
-        for strategy_name, result in self.results.items():
-            # Calculate and plot the derivative of the continuous function for each strategy
-            derivative = np.gradient(result[value], x_original)
-            plt.plot(x_original[:-1], derivative, label=f"{strategy_name} - Derivative")
-
-        plt.xlabel("Trial Number")
-        plt.ylabel("Derivative")
-        plt.title("Derivative of Accumulation Over Trials")
-        plt.legend()
-
-        plt.figure(figsize=(10, 6))
-
-        for strategy_name, result in self.results.items():
-            # Calculate and plot the double derivative of the continuous function for each strategy
-            double_derivative = np.gradient(np.gradient(result[value], x_original), x_original[:-1])
-            plt.plot(x_original[:-2], double_derivative, label=f"{strategy_name} - Double Derivative")
-
-        plt.xlabel("Trial Number")
-        plt.ylabel("Double Derivative")
-        plt.title("Double Derivative of Accumulation Over Trials")
-        plt.legend()
-
         plt.show()
-
+        if self.save_plots:
+            # Save the figure with a filename based on the strategy codes
+            filename = self.generate_csv_filename()
+            plt.savefig(filename + '_plot.png')
+            plt.close()
     def plot_groupedbarchart(self):
         final_rewards = [result["FinalRewards"] for result in self.results.values()]
         final_timeouts = [result["FinalTimeouts"] for result in self.results.values()]
@@ -324,14 +466,32 @@ class Experiment:
         plt.legend()
         plt.show()
 
+        if self.save_plots:
+            filename = self.csv_filename
+            plt.savefig(filename + '_bar.png')
+            plt.close()  # Close the figure to start a new one
+
+            print(f"Plots saved successfully.")
+
 
 # Define the strategies to simulate
 strategies_to_simulate = {
-    "Random": random_strategy, #Takes a random action according to the probability set
+    "Random": random_strategy, #Takes an random action according to the probability set
+    "Always Lick": always_lick_strategy, #Always perform the same set action
+    "Periodic": periodic_strategy,  #Always repeat the same set pattern
+    "Plastic": plastic_strategy, #Is most likely to take the least frequent recent action (Memory size)
+    "Adaptive": adaptive_strategy, #Is most likely to Lick when the recent states have been favorable (Memory Size)
+    "Intuitive": intuitive_strategy, #If there was reward in the last three he will Lick.
+    "Stochastic": stochastic_strategy, #Lick probability increases as the time passes from the last reward
+    "Jackpot": jackpot_strategy, # After some profit checkpoints becomes more conservative
+    "Decay": exponential_decay_strategy, #Less likely to lick as the profit increase
+    "Empirical" : empirical_strategy, #Establishes deterministic relations between spout states and tube states
     "QLearningAgent": qlearning_strategy,#A q learning agent that learns through reinforcement learning
 }
+
 values_to_plot = ["Profit"] # Profit, Reward, Timeouts, Null
+
 # Run the experiment with x trials for selected strategies and values
-experiment = Experiment(num_trials=1000, strategy_fns=strategies_to_simulate,
-                        values_to_plot=values_to_plot, memory_size=10)
+experiment = Experiment(num_trials=35, strategy_fns=strategies_to_simulate,
+                        values_to_plot=values_to_plot, memory_size=10, generate_csv=True, save_plots=True)
 experiment.run_experiment()
