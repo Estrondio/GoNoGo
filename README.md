@@ -11,7 +11,7 @@ GTS3 is a Python-based simulator designed for experimenting with different strat
 
 - **Strategy Exploration**: Test and compare various pre-built strategies, from random actions to q-learning agents.
 - **Visualization**: Visualize the accumulation of tracking variables over trials. Or visualize how these vary over multiple simulations.
-- **Data collection**: Export the results on a trial-by-trial basis into a .csv file. 
+- **Data collection**: Export the results on a trial-by-trial basis into a .csv file.  
 - **Flexible Experimentation**: Easily modify the number of trials, sessions, strategy, and track variables.
 - **Modularity**: Easily implement your own strategy or learning agent policy/ strategy.
 
@@ -34,29 +34,40 @@ GTS3 takes instances of a defined environment and an agent and runs the experime
    -  **Warning** Although the code for the QLearning Agent are methods of the Agent, **the reward structure used by the agent is not defined here**. "Rewards", "Timeouts" and "Null" are simply qualitative tracking variables.
    - ❗**CUSTOMIZE**❗: Modify the parameters learning_rate, discount_factor, epsilon to explore the QLearningAgent strategy.
 
-- **The Experiment class**: 
-   
+- **The Experiment class**: The experiment creates instances of the agent (with the strategy) and the environment for the selected number of trials. It runs a single experiment for each strategy selected. The Updated q value function is here. It is also where the code for the plots is.
+  - ❗**CUSTOMIZE**❗: Customize the reward structure under the run_single_experiment method.
+
+- **Strategies**: Strategies are functions that do not belong to any class. When called, they operate some logic and return an action (Lick or Wait).
+  - ❗**CUSTOMIZE**❗: To add a new strategy/ policy simply define the function and index it in "strategies_to_simulate" You can make use of the multiple existing methods and attributes of the Agent class to define heuristics or else add new ones.
+ 
+
+    
 ## Getting Started
 
 1. Clone the repository:
-
     ```bash
     git clone https://github.com/Estrondio/GoNoGo.git
     ```
-
 2. Navigate to the project directory:
-
     ```bash
     cd GoNoGo
     ```
-
-3. Run the experiment:
-
-    ```bash
-    python neuro_simulator.py
+3. Choose a file version depending on your aims:
+  - **I want to simulate single sessions**:
+     ```bash
+    python SingleStrategies[Working].py
     ```
-
-4. Explore the results and enjoy the journey into the world of reinforcement learning!
+  - **I want to simulate single sessions and save my results in a csv document**:
+     ```bash
+    python SingleStrategiesExcel[Working].py
+    ```
+  - **I want to simulate multiple sessions**:
+     ```bash
+    python SingleStrategies[Working].py
+    ```
+4. Select your strategies by commenting out (insert a '#' before it) the ones you don't want to run on the Strategies to simulate index
+5. Select your parameters and add any modification that you want. (Agent parameters, Strategies' parameters, Num trials, Memory size and values to plot).
+6. Run experiment.run_experiment()
 
 ## Dependencies
 
