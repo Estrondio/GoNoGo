@@ -1,30 +1,32 @@
 # Go/NoGo Task SIM 3000
-![Banner for the GoNoGo SIM 3000, an anthropomorphic mouse looking staring into a red light](GoNoGo/images/Gonogogithub.png)
+![Banner for the GoNoGo SIM 3000, an anthropomorphic mouse looking staring into a red light](Images/Gonogogithub.png)
 
-Welcome to NeuroSimGoNoGo, a Reinforcement Learning Framework for Go/No-Go Task Simulation.
+Welcome to Go/NoGo Task SIM 3000 (GTS3), a Go/No-Go Task Simulator.
 
 ## Overview
 
-NeuroSimGoNoGo is a Python-based simulator designed for experimenting with different strategies in a go/no-go task simulation. It allows users to explore the performance of pre-built strategies and compare them to a learning agent.
+GTS3 is a Python-based simulator designed for experimenting with different strategies in a go/no-go task simulation. It allows users to explore the performance of different agents' policies against different environmental contingencies.
 
 ## Features
 
-- **Strategy Exploration**: Test and compare various strategies, from random actions to sophisticated learning agents.
-- **Visualization**: Visualize the accumulation of tracking variables over trials.
-- **Flexible Experimentation**: Easily modify the number of trials, strategy functions, and tracked variables.
+- **Strategy Exploration**: Test and compare various pre-built strategies, from random actions to q-learning agents.
+- **Visualization**: Visualize the accumulation of tracking variables over trials. Or visualize how these vary over multiple simulations.
+- **Data collection**: Export the results on a trial-by-trial basis into a .csv file. 
+- **Flexible Experimentation**: Easily modify the number of trials, sessions, strategy, and track variables.
+- **Modularity**: Easily implement your own strategy or learning agent policy/ strategy.
 
 ## Getting Started
 
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/YourUsername/NeuroSimGoNoGo.git
+    git clone https://github.com/Estrondio/GoNoGo.git
     ```
 
 2. Navigate to the project directory:
 
     ```bash
-    cd NeuroSimGoNoGo
+    cd GoNoGo
     ```
 
 3. Run the experiment:
