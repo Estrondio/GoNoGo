@@ -492,6 +492,6 @@ strategies_to_simulate = {
 values_to_plot = ["Profit"] # Profit, Reward, Timeouts, Null
 
 # Run the experiment with x trials for selected strategies and values
-experiment = Experiment(num_trials=35, strategy_fns=strategies_to_simulate,
+experiment = Experiment(num_trials=50, strategy_fns=strategies_to_simulate,
                         values_to_plot=values_to_plot, memory_size=10, generate_csv=True, save_plots=True)
 experiment.run_experiment()

@@ -378,6 +378,6 @@ strategies_to_simulate = {
 values_to_plot = ["Profit"]
 num_simulations = 100  # Set the desired number of simulations
 
-experiment = Experiment(num_trials=100, strategy_fns=strategies_to_simulate,
+experiment = Experiment(num_trials=1000, strategy_fns=strategies_to_simulate,
                         values_to_plot=values_to_plot, num_simulations=num_simulations, memory_size=10)
 experiment.run_experiment()
