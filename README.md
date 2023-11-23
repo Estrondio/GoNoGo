@@ -1,5 +1,5 @@
-# GoNoGo
-# NeuroSimGoNoGo
+# Go/NoGo Task SIM 3000
+![Banner for the GoNoGo SIM 3000, an anthropomorphic mouse looking staring into a red light](GoNoGo/images/Gonogogithub.png)
 
 Welcome to NeuroSimGoNoGo, a Reinforcement Learning Framework for Go/No-Go Task Simulation.
 
