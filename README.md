@@ -5,7 +5,8 @@ Welcome to Go/NoGo Task SIM 3000 (GTS3), a Go/No-Go Task Simulator.
 
 ## Overview
 
-GTS3 is a Python-based simulator designed for experimenting with different strategies in a go/no-go task simulation. It allows users to explore the performance of different agents' policies against different environmental contingencies.
+GTS3 is a Python-based simulator designed for experimenting with different strategies in a go/no-go task simulation. It allows users to explore the performance of different agents' policies against different environmental contingencies. 
+![An animated gif plotting reward over trials for multiple strategies](ExamplePlots/100TrialsAllstrategiesb.gif)
 
 ## Features
 
