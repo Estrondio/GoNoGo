@@ -122,7 +122,7 @@ class Agent:
     def choose_q_action(self, state):
         # Epsilon-greedy strategy for exploration
         if random.uniform(0, 1) < self.epsilon:
-            print("Randomhit!")
+            #print("Randomhit!")
             return random.choice(self.action_space)
         else:
             # Choose action with the highest Q-value
@@ -196,9 +196,9 @@ class Experiment:
             # Calculate profit and update agent's profit variable
             self.agent.profit = self.agent.calculate_profit()
 
-            # Print information (line)
-            print(f"Trial {trial} - Action: {action}, Reward: {reward},"
-                  f"Profit: {self.agent.profit}, Tube State: {self.environment.tube_state}")
+            # Print information (line) - Uncomment to see real-time trial by trial actions
+            #print(f"Trial {trial} - Action: {action}, Reward: {reward},"
+                  #f"Profit: {self.agent.profit}, Tube State: {self.environment.tube_state}")
 
             # Append tracking variables to lists for plotting
             rewards_over_trials.append(self.agent.rewards)
@@ -399,15 +399,15 @@ strategies_to_simulate = {
     "Jackpot": jackpot_strategy, # After some profit checkpoints becomes more conservative
     "Decay": exponential_decay_strategy, #Less likely to lick as the profit increase
     "Empirical" : empirical_strategy, #Establishes deterministic relations between spout states and tube states
-    "QLearningAgent": qlearning_strategy,#A q learning agent that learns through reinforcement learning
+    "QLearning": qlearning_strategy,#A q learning agent that learns through reinforcement learning
 }
 values_to_plot = ["Profit"] # Profit, Reward, Timeouts, Null
 probabilities = [0.3, 0.5, 0.2] #Go, NoGo, Check
 
 def get_user_parameters():
-    print("Welcome to the GoNoGo Simulator!")
+    print("\nWelcome to the Go/NoGo Task SIM 3000! \n")
 
-    choice = input("Enter '1' to set up a new simulation or '2' to run a predefined test simulation:\n")
+    choice = input("Enter '1' to set up a new simulation or '2' to run a predefined test simulation:")
 
     if choice == '2':
         return {
@@ -416,33 +416,61 @@ def get_user_parameters():
             "selected_strategies": list(strategies_to_simulate.keys()),  # Use all strategies by default
         }
     elif choice == '1':
-        # Get user input for tube state probabilities
-        check_rate = int(input("Enter the probability of a check trial (0-100): ")) // 10
-        go_probability = int(input("Enter the probability of a GO trial (0-100): ")) // 10
-        nogo_probability = 1 - check_rate - go_probability
-        probabilities[0] = go_probability
-        probabilities[1] = nogo_probability
-        probabilities[2] = check_rate
-        print("Probabilities selected: \n GO:", go_probability*10, "\n NOGO:", nogo_probability *10, "\CHECK:", check_rate * 10)
+        while True:
+            # Get user input for tube state probabilities
+            check_rate = int(input("Enter the probability (0-100) for a check trial (trials without a stimulus):\n")) / 100
+            if check_rate < 0 or check_rate > 1:
+                print('Input has to be between 0 and 100!')
+                continue
+            go_probability = int(input("Enter the probability for a GO cue trial (0-100):\n")) / 100
+            if go_probability < 0 or go_probability > 1:
+                print('Input has to be between 0 and 100!')
+                continue
+            nogo_probability = 1 - (check_rate + go_probability)
+            probabilities[0] = go_probability
+            probabilities[1] = nogo_probability
+            probabilities[2] = check_rate
+            print("Probabilities selected: \nGO cue:", go_probability*100, "\nNOGO cue:", nogo_probability*100, "\nCHECK (no cue):", check_rate*100)
+            # Ask for user confirmation
+            confirm = input("Are you ok with these probabilities? (yes/ no): ")
+            confirm_lower = confirm.lower()
+            if confirm_lower == 'yes':
+                break
+            elif confirm_lower == 'no':
+                continue
+            else:
+                print("Invalid input. Please enter either 0 or 1.")
 
-        # Display available strategies with comments'''
-        print("Available strategies:")
+        # Display available strategies with comments
+        print("Now it is time to select the agent policy. Here is a list of the available strategies:")
         for i, (strategy_name, strategy_fn) in enumerate(strategies_to_simulate.items()):
             comment = strategy_fn.__doc__ if strategy_fn.__doc__ else "No comments available."
             print(f"{i + 1}. {strategy_name} - {comment}")
 
-        # Get user-selected strategies
-        selected_strategies_indices = input("Enter the numbers of the desired agents/strategies (separated by commas): ")
-        selected_strategies_indices = [int(idx) - 1 for idx in selected_strategies_indices.split(',')]
+        while True:
+            # Get user-selected strategies
+            selected_strategies_indices = input(
+                "Enter the numbers of the desired agents/strategies (separated by commas): ")
 
-        selected_strategies = [list(strategies_to_simulate.keys())[idx] for idx in selected_strategies_indices]
+            try:
+                selected_strategies_indices = [int(idx) - 1 for idx in selected_strategies_indices.split(',')]
+            except ValueError:
+                print("Invalid input. Please enter numbers separated by commas.")
+                continue
+
+            invalid_indices = [idx for idx in selected_strategies_indices if
+                               idx < 0 or idx >= len(strategies_to_simulate)]
+
+            if invalid_indices:
+                print("Invalid input")
+            else:
+                selected_strategies = [list(strategies_to_simulate.keys())[idx] for idx in selected_strategies_indices]
+                break
 
         return {
             "num_trials": int(input("Enter the number of trials: ")),
             "memory_size": int(input("Enter the memory size: ")),
             "selected_strategies": selected_strategies,
-            # Add other parameters with their default values here
-            #"probabilities": probabilities
         }
     else:
         print("Invalid choice. Please enter either 1 or 2.")
@@ -452,9 +480,6 @@ def get_user_parameters():
 
 # Get user parameters
 user_parameters = get_user_parameters()
-
-# Pass probabilities to the Environment class
-#environment = Environment(probabilities=user_parameters["probabilities"])
 
 # Create an instance of the Experiment class with the environment
 experiment = Experiment(
