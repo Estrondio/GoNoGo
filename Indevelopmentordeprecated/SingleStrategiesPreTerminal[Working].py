@@ -2,6 +2,8 @@ import random
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import csv
+
 
 class Environment:
     def __init__(self):
@@ -11,12 +13,12 @@ class Environment:
 
     def update_tube_state(self):
         # Update tube state probabilistically
+        probabilities = [0.3, 0.5, 0.2]
         self.tube_state = random.choices(["GO", "NOGO", "CHECK"], probabilities)[0]
 
     def set_spout_state(self):
         # Set spout state based on tube state
         self.spout_state = "ON" if self.tube_state == "GO" else "OFF"
-
 
 
 class Agent:
@@ -140,14 +142,115 @@ class Agent:
         new_q = (1 - self.learning_rate) * current_q + self.learning_rate * (reward + self.discount_factor * best_next_q)
         self.q_table[(state, action)] = new_q
 
+# Strategies
+def random_strategy(agent, environment, lick_probability=0.5):
+    if len(agent.recent_spout_states) == 0:
+        return "Wait"
+    else:
+        #print('Branch1. recent spout states:', agent.recent_spout_states)
+        #print("Recent spout states last", agent.recent_tube_states[-1])
+        return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
+
+def always_lick_strategy(agent, environment, return_lick=0):
+    return "Lick" if return_lick == 0 else "Wait"
+
+def periodic_strategy(agent, environment, consecutive_wait=3, consecutive_lick=2):
+    agent.trial_count += 1
+    if (agent.trial_count % (consecutive_wait + consecutive_lick)) < consecutive_wait:
+        return "Wait"
+    else:
+        return "Lick"
+
+def plastic_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if len(agent.recent_actions) < memory_size:
+        return random.choice(["Lick", "Wait"])
+    else:
+        wait_probability = agent.recent_actions.count("Lick") / len(agent.recent_actions)
+        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
+
+def adaptive_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if len(agent.recent_actions) < memory_size:
+        return random.choice(["Lick", "Wait"])
+    else:
+        outcomes = agent.recent_spout_states
+        lick_probability = 1 - (outcomes.count("OFF") / len(outcomes))
+        print("Outcomes:", outcomes, "recentspoutstates:", agent.recent_spout_states, " PWait:", lick_probability)
+        return "Lick" if random.uniform(0, 1) > lick_probability else "Wait"
+
+def intuitive_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if len(agent.recent_actions) < memory_size:
+        return random.choice(["Lick", "Wait"])
+    else:
+        if any(element == 'ON' for element in agent.recent_spout_states[-3:]):
+            return "Lick"
+        elif agent.recent_spout_states[-3:].count('OFF') >= 3:
+            return "Wait"
+        else:
+            return random.choice(["Lick", "Wait"])
+
+def stochastic_strategy(agent, environment):
+    memory_size = agent.strategy_kwargs.get("memory_size")
+    if 'ON' in agent.recent_spout_states:
+        last_ON = len(agent.recent_spout_states) - 1 - agent.recent_spout_states[::-1].index('ON')
+        distance = len(agent.recent_spout_states) - 1 - last_ON
+        wait_probability = (10 - distance) / 10
+        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
+    else:
+        return random.choice(["Lick", "Wait"])
+
+def jackpot_strategy(agent, environment):
+    if 1 <= agent.profit <=4:
+        return "Lick" if random.uniform(0, 1) < (0.5 - (agent.profit / 10)) else "Wait"
+    elif 5 <= agent.profit <=99:
+        return "Lick" if random.uniform(0, 1) < (0.1 - (agent.profit / 1000)) else "Wait"
+    elif agent.profit == 100:
+        return "Wait"
+    else:
+        return random.choice(["Lick", "Wait"])
+
+def exponential_decay_strategy(agent, environment):
+    profit = agent.profit
+    # Define the base probability of licking
+    base_probability = 0.5
+    # Define the decay rate
+    decay_rate = 0.1
+    # Calculate the probability of licking using exponential decay
+    lick_probability = base_probability * math.exp(-decay_rate * profit)
+    # Make a decision based on the calculated probability
+    return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
+
+def empirical_strategy(agent, environment):
+    # Start with a random choice for the first trial
+    if len(agent.recent_spout_states) == 0:
+        return random.choice(["Lick", "Wait"])
+
+    # Update heuristics based on the previous trial's outcome
+    if agent.recent_spout_states[-1] == "ON":
+        agent.winning_heuristic.append(agent.recent_tube_states[-2])
+    elif agent.recent_spout_states[-1] == "OFF":
+        agent.losing_heuristic.append(agent.recent_tube_states[-2])
+
+    # Check for action selection based on the current tube state
+    if environment.tube_state in agent.winning_heuristic:
+        return "Lick"
+    elif environment.tube_state in agent.losing_heuristic:
+        return "Wait"
+    else:
+        return random.choice(["Lick", "Wait"])
+
+def qlearning_strategy(agent, environment):
+    return agent.choose_q_action(environment.tube_state)
+
 class Experiment:
-    def __init__(self, num_trials, strategy_fns, selected_strategies, values_to_plot, **kwargs):
+    def __init__(self, num_trials, strategy_fns, values_to_plot, **kwargs):
         # Initialize experiment parameters and strategy functions
         self.num_trials = num_trials
         self.strategy_fns = strategy_fns
         self.values_to_plot = values_to_plot
         self.kwargs = kwargs
-        self.selected_strategies = selected_strategies
         self.results = {}
 
     def run_single_experiment(self, strategy_fn):
@@ -274,124 +377,12 @@ class Experiment:
         plt.legend()
         plt.show()
 
-# Strategies
-def random_strategy(agent, environment, lick_probability=0.5):
-    """Takes a random action according to a set probability (Default: 50%)"""
-    if len(agent.recent_spout_states) == 0:
-        return "Wait"
-    else:
-        #print('Branch1. recent spout states:', agent.recent_spout_states)
-        #print("Recent spout states last", agent.recent_tube_states[-1])
-        return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
-
-def always_lick_strategy(agent, environment, return_lick=0):
-    """Always perform the same set action (Default: Lick)"""
-    return "Lick" if return_lick == 0 else "Wait"
-
-def periodic_strategy(agent, environment, consecutive_wait=3, consecutive_lick=2):
-    """Always repeat the same set pattern (Default: 3xWait,2xLick)"""
-    agent.trial_count += 1
-    if (agent.trial_count % (consecutive_wait + consecutive_lick)) < consecutive_wait:
-        return "Wait"
-    else:
-        return "Lick"
-
-def plastic_strategy(agent, environment):
-    """This agent is most likely to take the least frequent recent action"""
-    memory_size = agent.strategy_kwargs.get("memory_size")
-    if len(agent.recent_actions) < memory_size:
-        return random.choice(["Lick", "Wait"])
-    else:
-        wait_probability = agent.recent_actions.count("Lick") / len(agent.recent_actions)
-        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
-
-def adaptive_strategy(agent, environment):
-    """This agent is more likely to Lick when the recent spout states have been favorable"""
-    memory_size = agent.strategy_kwargs.get("memory_size")
-    if len(agent.recent_actions) < memory_size:
-        return random.choice(["Lick", "Wait"])
-    else:
-        outcomes = agent.recent_spout_states
-        lick_probability = 1 - (outcomes.count("OFF") / len(outcomes))
-        #print("Outcomes:", outcomes, "recentspoutstates:", agent.recent_spout_states, " PWait:", lick_probability)
-        return "Lick" if random.uniform(0, 1) > lick_probability else "Wait"
-
-def intuitive_strategy(agent, environment):
-    """If there was reward in the last x trials they will Lick. (Default: 3)"""
-    memory_size = agent.strategy_kwargs.get("memory_size")
-    if len(agent.recent_actions) < memory_size:
-        return random.choice(["Lick", "Wait"])
-    else:
-        if any(element == 'ON' for element in agent.recent_spout_states[-3:]):
-            return "Lick"
-        elif agent.recent_spout_states[-3:].count('OFF') >= 3:
-            return "Wait"
-        else:
-            return random.choice(["Lick", "Wait"])
-
-def stochastic_strategy(agent, environment):
-    """Lick probability increases as the trials pass from the last reward"""
-    memory_size = agent.strategy_kwargs.get("memory_size")
-    if 'ON' in agent.recent_spout_states:
-        last_ON = len(agent.recent_spout_states) - 1 - agent.recent_spout_states[::-1].index('ON')
-        distance = len(agent.recent_spout_states) - 1 - last_ON
-        wait_probability = (10 - distance) / 10
-        return "Wait" if random.uniform(0, 1) < wait_probability else "Lick"
-    else:
-        return random.choice(["Lick", "Wait"])
-
-def jackpot_strategy(agent, environment):
-    """After some profit checkpoints, it becomes less likely to lick"""
-    if 1 <= agent.profit <=4:
-        return "Lick" if random.uniform(0, 1) < (0.5 - (agent.profit / 10)) else "Wait"
-    elif 5 <= agent.profit <=99:
-        return "Lick" if random.uniform(0, 1) < (0.1 - (agent.profit / 1000)) else "Wait"
-    elif agent.profit == 100:
-        return "Wait"
-    else:
-        return random.choice(["Lick", "Wait"])
-
-def exponential_decay_strategy(agent, environment):
-    """Less likely to lick as the profit increase"""
-    profit = agent.profit
-    # Define the base probability of licking
-    base_probability = 0.5
-    # Define the decay rate
-    decay_rate = 0.1
-    # Calculate the probability of licking using exponential decay
-    lick_probability = base_probability * math.exp(-decay_rate * profit)
-    # Make a decision based on the calculated probability
-    return "Lick" if random.uniform(0, 1) < lick_probability else "Wait"
-
-def empirical_strategy(agent, environment):
-    """Establishes deterministic relations between spout states and tube states"""
-    # Start with a random choice for the first trial
-    if len(agent.recent_spout_states) == 0:
-        return random.choice(["Lick", "Wait"])
-
-    # Update heuristics based on the previous trial's outcome
-    if agent.recent_spout_states[-1] == "ON":
-        agent.winning_heuristic.append(agent.recent_tube_states[-2])
-    elif agent.recent_spout_states[-1] == "OFF":
-        agent.losing_heuristic.append(agent.recent_tube_states[-2])
-
-    # Check for action selection based on the current tube state
-    if environment.tube_state in agent.winning_heuristic:
-        return "Lick"
-    elif environment.tube_state in agent.losing_heuristic:
-        return "Wait"
-    else:
-        return random.choice(["Lick", "Wait"])
-
-def qlearning_strategy(agent, environment):
-    """A q learning agent that learns through reinforcement learning"""
-    return agent.choose_q_action(environment.tube_state)
 
 # Define the strategies to simulate
 strategies_to_simulate = {
-    "Random": random_strategy, #Takes an random action according to the probability set (Default: 50%)
-    "Always Lick": always_lick_strategy, #Always perform the same set action (Default: Lick)
-    "Periodic": periodic_strategy,  #Always repeat the same set pattern (Default: 3xWait,2xLick)
+    "Random": random_strategy, #Takes an random action according to the probability set
+    "Always Lick": always_lick_strategy, #Always perform the same set action
+    "Periodic": periodic_strategy,  #Always repeat the same set pattern
     "Plastic": plastic_strategy, #Is most likely to take the least frequent recent action (Memory size)
     "Adaptive": adaptive_strategy, #Is most likely to Lick when the recent states have been favorable (Memory Size)
     "Intuitive": intuitive_strategy, #If there was reward in the last three he will Lick.
@@ -401,67 +392,10 @@ strategies_to_simulate = {
     "Empirical" : empirical_strategy, #Establishes deterministic relations between spout states and tube states
     "QLearningAgent": qlearning_strategy,#A q learning agent that learns through reinforcement learning
 }
+
 values_to_plot = ["Profit"] # Profit, Reward, Timeouts, Null
-probabilities = [0.3, 0.5, 0.2] #Go, NoGo, Check
 
-def get_user_parameters():
-    print("Welcome to the GoNoGo Simulator!")
-
-    choice = input("Enter '1' to set up a new simulation or '2' to run a predefined test simulation:\n")
-
-    if choice == '2':
-        return {
-            "num_trials": 100,
-            "memory_size": 10,
-            "selected_strategies": list(strategies_to_simulate.keys()),  # Use all strategies by default
-        }
-    elif choice == '1':
-        # Get user input for tube state probabilities
-        check_rate = int(input("Enter the probability of a check trial (0-100): ")) // 10
-        go_probability = int(input("Enter the probability of a GO trial (0-100): ")) // 10
-        nogo_probability = 1 - check_rate - go_probability
-        probabilities[0] = go_probability
-        probabilities[1] = nogo_probability
-        probabilities[2] = check_rate
-        print("Probabilities selected: \n GO:", go_probability*10, "\n NOGO:", nogo_probability *10, "\CHECK:", check_rate * 10)
-
-        # Display available strategies with comments'''
-        print("Available strategies:")
-        for i, (strategy_name, strategy_fn) in enumerate(strategies_to_simulate.items()):
-            comment = strategy_fn.__doc__ if strategy_fn.__doc__ else "No comments available."
-            print(f"{i + 1}. {strategy_name} - {comment}")
-
-        # Get user-selected strategies
-        selected_strategies_indices = input("Enter the numbers of the desired agents/strategies (separated by commas): ")
-        selected_strategies_indices = [int(idx) - 1 for idx in selected_strategies_indices.split(',')]
-
-        selected_strategies = [list(strategies_to_simulate.keys())[idx] for idx in selected_strategies_indices]
-
-        return {
-            "num_trials": int(input("Enter the number of trials: ")),
-            "memory_size": int(input("Enter the memory size: ")),
-            "selected_strategies": selected_strategies,
-            # Add other parameters with their default values here
-            #"probabilities": probabilities
-        }
-    else:
-        print("Invalid choice. Please enter either 1 or 2.")
-        exit()
-
-# ... (rest of the code)
-
-# Get user parameters
-user_parameters = get_user_parameters()
-
-# Pass probabilities to the Environment class
-#environment = Environment(probabilities=user_parameters["probabilities"])
-
-# Create an instance of the Experiment class with the environment
-experiment = Experiment(
-    strategy_fns={k: v for k, v in strategies_to_simulate.items() if k in user_parameters["selected_strategies"]},
-    values_to_plot=values_to_plot,
-    **user_parameters
-)
-
-# Run the experiment
+# Run the experiment with x trials for selected strategies and values
+experiment = Experiment(num_trials=100, strategy_fns=strategies_to_simulate,
+                        values_to_plot=values_to_plot, memory_size=10)
 experiment.run_experiment()
