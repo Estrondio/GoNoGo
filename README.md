@@ -7,6 +7,13 @@ Welcome to Go/NoGo Task SIM 3000 (GTS3), a Go/No-Go Task Simulator.
 
 GTS3 is a Python-based simulator designed for experimenting with different strategies in a go/no-go task simulation. It allows users to explore the performance of different agents' policies against different environmental contingencies.
 
+The Go/NoGo task is a simple cognitive task that was first developed by Donders in 1868. It consists of an agent being exposed to a cue and then deciding whether to act or not. The cue is usually binary with a GO cue associated with a reward when acted on and a NOGO cue associated with some form of punishment. There could also be an absence of cues. In such trials, the actions of the agent are usually of no consequence. This task has been traditionally used in psychology research to study action suppression and  impulsivity. However, it has found its way into experimental neuroscience to study sensorimotor representations, decision-making, and learning among other cognitive functions usually in rodent animal models. 
+
+This simulator was created with experimental neuroscientists in mind. The aim is to provide a tool to explore the mathematical space of the expected reward and punishment for multiple parameters such as task probability structure, number of trials, employed strategy, value of reward, etc. This is particularly important when designing animal experiments that rely on water-restricted reward protocols.
+
+![An animated gif plotting reward over trials for multiple strategies](ExamplePlots/100TrialsAllstrategies.gif)
+
+
 ## Features
 
 - **Strategy Exploration**: Test and compare various pre-built strategies, from random actions to q-learning agents.
@@ -76,13 +83,8 @@ GTS3 takes instances of a defined environment and an agent and runs the experime
 - NumPy
 
 ## Contribution
-
-Feel free to contribute by forking the repository and creating pull requests. If you have suggestions, improvements, or find any issues, let's collaborate to make NeuroSimGoNoGo even better!
+This is a work in progress. Feel free to contribute to this repository. 
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
----
-
-Happy coding and exploring the realms of reinforcement learning!
